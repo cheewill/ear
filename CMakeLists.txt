@@ -1,0 +1,51 @@
+cmake_minimum_required(VERSION 3.12)
+
+project(EAR VERSION 0.0.1)
+
+option(BUILD_TESTS "Build project with test suite" OFF)
+
+#set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Release)
+
+#include_directories(include deps/msgpack/include)
+
+#set(msgpack_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/msgpack/src")
+
+add_definitions("-g -W -Wall -O2 -fPIC")
+list(APPEND CMAKE_CXX_FLAGS "-std=c++11")
+
+add_subdirectory(juce)
+
+find_package(Boost 1.54 REQUIRED
+    system
+    program_options
+	filesystem
+)
+
+#find_package(JUCE REQUIRED PATHS "${CMAKE_CURRENT_LIST_DIR}/out/juce/")
+
+message("JUCE=${JUCE_FOUND}")
+
+include_directories(${Boost_INCLUDE_DIRS})
+#include_directories(${Boost_INCLUDE_DIRS} ${RTTL_INCLUDE_DIRS})
+
+#add_definitions(-DMLOG_DIRECTORY_PATH="${CMAKE_CURRENT_LIST_DIR}")
+
+#set(CMAKE_MACOSX_RPATH False)
+
+include_directories(include)
+
+#add_subdirectory(benchmark)
+#add_subdirectory(build)
+#add_subdirectory(bin)
+add_subdirectory(src)
+
+#if(BUILD_TESTS)
+#    add_subdirectory(deps/gtest)
+#    add_subdirectory(test)
+#endif()
+
+#if(BUILD_COVERAGE AND NOT CMAKE_COMPILER_IS_GNUCXX)
+#    message([WARNING] "Code Coverage on non-GCC compilers is not supported by default.
+#Ensure that coverage library profile_rt is in CMake library path before executing.")
+#endif()
