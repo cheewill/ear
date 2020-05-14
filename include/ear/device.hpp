@@ -11,24 +11,6 @@
 
 namespace ear {
 
-
-
-class AudioSource : public juce::AudioSource {
-    juce::Uuid _uuid;
-
-public:
-    virtual ~AudioSource() = default;
-
-    juce::Uuid getUuid() const { return _uuid; }
-
-    virtual int getChannelCount() const = 0;
-
-    virtual void audioDeviceAboutToStart(juce::AudioIODevice* device) {}
-
-    virtual void audioDeviceStopped() {}
-
-    virtual void releaseResources() {}
-};
 /*
 class RawAudioSource : public AudioSource {
 	juce::AudioSource* _source{nullptr};
@@ -54,7 +36,7 @@ public:
 		_source->getNextAudioBlock(bufferToFill);
 	}
 };
-*/
+
 class AudioDeviceSink {
 public:
     juce::CriticalSection _mutex;
@@ -80,32 +62,19 @@ public:
         _player.audioDeviceStopped();
     }
 };
+*/
 
-class AudioDeviceSource : public AudioSource {
-    juce::CriticalSection _mutex;
-    juce::AudioBuffer<float> buffer;
-
-public:
-    AudioDeviceSource() = default;
-    ~AudioDeviceSource() = default;
-
-    void update(const float** data, int numChannels, int numSamples) {
-
-    }
-
-    void getNextAudioBlock(const juce::AudioSourceChannelInfo &bufferToFill) {
-        // TODO
-    }
-};
-
-class AudioIoDevice : juce::AudioIODeviceCallback {
+class AudioIoDevice : public juce::AudioIODeviceCallback {
     std::shared_ptr<juce::AudioIODevice> _device{nullptr};
     std::shared_ptr<juce::AudioIODeviceType> _type{nullptr};
 
     juce::CriticalSection _mutex;
-	std::vector<juce::AudioIODeviceCallback> _callbacks;
+	uint64_t _count{0};
+	std::vector<juce::AudioIODeviceCallback*> _callbacks;
+	juce::AudioIODevice* _startedDevice{nullptr};
+
     //std::shared_ptr<AudioDeviceSource> _input;
-    std::shared_ptr<AudioDeviceSink> _output;
+    //std::shared_ptr<AudioDeviceSink> _output;
 	juce::AudioBuffer<float> _outputCache;
 
 	juce::AudioSampleBuffer _buffer;
@@ -168,6 +137,44 @@ public:
 
     unsigned getInputChannelCount() const { return _device->getInputChannelNames().size(); }
 
+	bool addCallback(juce::AudioIODeviceCallback* callback) {
+		juce::ScopedLock lock(_mutex);
+
+		auto it = std::find(_callbacks.begin(), _callbacks.end(), callback);
+		if (it != _callbacks.end()) {
+			// already in list
+			return false;
+		}
+
+		// if already started, send callback
+		if (_startedDevice != nullptr) {
+			callback->audioDeviceAboutToStart(_startedDevice);
+		}
+
+		_callbacks.push_back(callback);
+		return true;
+	}
+
+	bool removeCallback(juce::AudioIODeviceCallback* callback) {
+		juce::ScopedLock lock(_mutex);
+
+		auto it = std::remove(_callbacks.begin(), _callbacks.end(), callback);
+		if (it == _callbacks.end()) {
+			// none found
+			return false;
+		}
+
+		// if in the "running" state, then send stop signal
+		if (_startedDevice != nullptr) {
+			for (auto localIt = it; it != _callbacks.end(); ++localIt) {
+				(*localIt)->audioDeviceStopped();
+			}
+		}
+
+		_callbacks.erase(it, _callbacks.end());
+		return true;
+	}
+
 	void setGraph(juce::AudioProcessorGraph* graph) {
 		juce::ScopedLock lock(_mutex);
 
@@ -188,7 +195,7 @@ public:
         }
 
         //_input = std::make_shared<AudioDeviceSource>();
-        _output = std::make_shared<AudioDeviceSink>();
+        //_output = std::make_shared<AudioDeviceSink>();
 
         return err == "";
     }
@@ -197,16 +204,12 @@ public:
         _device->close();
 
         //_input = nullptr;
-        _output = nullptr;
+        //_output = nullptr;
     }
 
-    void start(juce::AudioIODeviceCallback* callback=nullptr) {
+    void start() {
         DBG("starting device");
-		if (callback == nullptr) {
-	        _device->start(this);
-		} else {
-			_device->start(callback);
-		}
+	    _device->start(this);
     }
 
     void stop() {
@@ -215,7 +218,7 @@ public:
 
     //std::shared_ptr<AudioDeviceSource> getInputDevice() const { return _input; }
 
-    std::shared_ptr<AudioDeviceSink> getOutputDevice() const { return _output; }
+    //std::shared_ptr<AudioDeviceSink> getOutputDevice() const { return _output; }
 
 	void outputBuffer(juce::AudioBuffer<float>& buffer) {
 		DBG("outputBuffer");
@@ -224,11 +227,17 @@ public:
 	}
 
 private:
-    void audioDeviceIOCallback (const float **inputChannelData, int numInputChannels, float **outputChannelData, int numOutputChannels, int requestedSamples) {
-        DBG("audioDeviceIOCallback=");
+    void audioDeviceIOCallback(const float **inputChannelData, int numInputChannels, float **outputChannelData, int numOutputChannels, int requestedSamples) {
+        DBG("audioDeviceIOCallback=" + juce::String(_count));
 
         const juce::ScopedLock lock(_mutex);
 
+		++_count;
+
+		for (auto& cb : _callbacks) {
+			cb->audioDeviceIOCallback(inputChannelData, numInputChannels, outputChannelData, numOutputChannels, requestedSamples);
+		}
+/*
 		if (_graph) {
 			_buffer.setSize(numOutputChannels, requestedSamples);
 
@@ -252,12 +261,21 @@ private:
         //_output->update(outputChannelData, numOutputChannels, numSamples);
 
 		DBG("~audioDeviceIOCallback [0][0]=" + juce::String(_outputCache.getSample(0, 0)));
+*/
     }
 
 
     void audioDeviceAboutToStart(juce::AudioIODevice *device) {
         DBG("audioDeviceAboutToStart");
 
+		const juce::ScopedLock lock(_mutex);
+
+		for (auto& cb : _callbacks) {
+			cb->audioDeviceAboutToStart(device);
+		}
+
+		_startedDevice = device;
+/*
 		auto newSampleRate = device->getCurrentSampleRate();
 		auto newBlockSize  = device->getCurrentBufferSizeSamples();
 		auto numChansIn    = device->getActiveInputChannels().countNumberOfSetBits();
@@ -268,33 +286,61 @@ private:
 		_graph->prepareToPlay(newSampleRate, newBlockSize);
         //_input->audioDeviceAboutToStart(device);
         //_output->audioDeviceAboutToStart(device);
+*/
     }
 
-    void audioDeviceStopped () {
+    void audioDeviceStopped() {
         DBG("audioDeviceStopped");
+
+		const juce::ScopedLock lock(_mutex);
+
+		for (auto& cb : _callbacks) {
+			cb->audioDeviceStopped();
+		}
+
+		_startedDevice = nullptr;
 
         //_input->audioDeviceStopped();
         //_output->audioDeviceStopped();
     }
 
-    void audioDeviceError (const juce::String &errorMessage) {
+    void audioDeviceError(const juce::String &errorMessage) {
         juce::Logger::writeToLog("audioDeviceError=" + errorMessage);
+
+		const juce::ScopedLock lock(_mutex);
+
+		for (auto& cb : _callbacks) {
+			cb->audioDeviceError(errorMessage);
+		}
     }
 };
-/*
-class OutputProcessor : public AudioGraphIOProcessor {
-	OutputProcessor(std::shared_ptr<AudioIoDevice>& device)
-		: AudioGraphIOProcessor(AudioGraphIOProcessor::IODeviceType::audioOutputNode)
-		, _device(device)
+
+class AudioIoDeviceCallback : public juce::AudioIODeviceCallback {
+public:
+	virtual ~AudioIoDeviceCallback() = default;
+
+	virtual void audioDeviceIOCallback(const float**, int, float**, int, int) override {}
+
+	virtual void audioDeviceAboutToStart(juce::AudioIODevice*) override {}
+
+	virtual void audioDeviceStopped() override {}
+
+	virtual void audioDeviceError(const juce::String&) override {}
+};
+
+class AudioIoDeviceFunctorCallback : public AudioIoDeviceCallback {
+	using Function = std::function<void (const float**, int, float**, int, int)>;
+private:
+	Function _fn{nullptr};
+
+public:
+	AudioIoDeviceFunctorCallback(Function fn)
+		: _fn(fn)
 	{}
 
-	const juce::String getName() const override { return "OutputProcessor"; }
-
-	void fillInPluginDescription(PluginDescription &) const override {}
-
-	void prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock) {
-		juce::Logger::writeToLog("OutputProcessor::prepareToPlay()");
+	void audioDeviceIOCallback(const float** inputs, int inputChannels, float** outputs, int outputChannels, int samples) override {
+		_fn(inputs, inputChannels, outputs, outputChannels, samples);
 	}
 };
-*/
+
 } // namespace ear

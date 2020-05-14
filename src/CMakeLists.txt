@@ -28,6 +28,7 @@ target_link_libraries(ear PRIVATE
 	juce::juce_audio_devices
 	juce::juce_audio_utils
 	juce::juce_audio_processors
+	juce::juce_dsp
 )
 
 #add_executable(ear ${ear_SOURCES})
