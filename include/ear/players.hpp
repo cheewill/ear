@@ -1,3 +1,6 @@
+#ifndef EAR_PLAYERS_HPP
+#define EAR_PLAYERS_HPP
+
 namespace ear {
 
 class AudioSourcePlayer : public juce::AudioSourcePlayer {
@@ -15,3 +18,5 @@ public:
 };
 
 } // namespace ear
+
+#endif

@@ -1,3 +1,8 @@
+#ifndef EAR_SOURCES_HPP
+#define EAR_SOURCES_HPP
+
+#include "juce_audio_formats/juce_audio_formats.h"
+
 namespace ear {
 
 class AudioSource : public juce::AudioSource {
@@ -63,3 +68,5 @@ public:
 
 
 } // namespace ear
+
+#endif

@@ -1,3 +1,8 @@
+#ifndef EAR_PROCESSOR_HPP
+#define EAR_PROCESSOR_HPP
+
+#include "sources.hpp"
+
 #include "juce_dsp/juce_dsp.h"
 #include "juce_audio_processors/juce_audio_processors.h"
 
@@ -6,6 +11,10 @@ namespace ear {
 class GraphProcessor : public juce::AudioProcessor {
 public:
 	GraphProcessor() = default;
+	GraphProcessor(const juce::AudioProcessor::BusesProperties& bus)
+		: juce::AudioProcessor(bus)
+	{}
+
 	virtual ~GraphProcessor() = default;
 
     virtual void prepareToPlay(double, int) override {}
@@ -57,7 +66,7 @@ public:
     	_gain.prepare(spec);
 	}
 
-	void processBlock(juce::AudioSampleBuffer& buffer, juce::MidiBuffer& midiMessages) override {
+	void processBlock(juce::AudioSampleBuffer& buffer, juce::MidiBuffer&) override {
 	    juce::dsp::AudioBlock<float> block(buffer);
 	    juce::dsp::ProcessContextReplacing<float> context(block);
 	    _gain.process(context);
@@ -73,10 +82,17 @@ public:
 	std::shared_ptr<juce::AudioSource> _source;
 	juce::AudioSourcePlayer _player;
 
-	GraphSource(const std::shared_ptr<juce::AudioSource> &source)
-		: _source(source)
+	GraphSource(const std::shared_ptr<juce::AudioSource> &source, const juce::AudioProcessor::BusesProperties& bus={})
+	 	: GraphProcessor(bus)
+		, _source(source)
 	{
 		_player.setSource(_source.get());
+	}
+
+	GraphSource(juce::AudioSource* source, const juce::AudioProcessor::BusesProperties& bus={})
+	 	: GraphProcessor(bus)
+	{
+		_player.setSource(source);
 	}
 
 	void prepareToPlay(double sampleRate, int estimatedSamplesPerBlock) override {
@@ -95,4 +111,16 @@ public:
 	}
 };
 
+class WhiteNoiseProcessor : public GraphSource {
+private:
+	WhiteNoiseSource _whiteNoise;
+
+public:
+	WhiteNoiseProcessor()
+		: GraphSource(&_whiteNoise, juce::AudioProcessor::BusesProperties().withOutput("main", juce::AudioChannelSet::mono()))
+	{}
+};
+
 } // ear namespace
+
+#endif

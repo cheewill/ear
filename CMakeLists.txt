@@ -16,7 +16,7 @@ list(APPEND CMAKE_CXX_FLAGS "-std=c++11")
 
 add_subdirectory(juce)
 
-find_package(Boost 1.54 REQUIRED
+find_package(Boost 1.70 REQUIRED
     system
     program_options
 	filesystem

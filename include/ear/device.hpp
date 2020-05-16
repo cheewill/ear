@@ -9,6 +9,12 @@
 #include "juce_audio_devices/juce_audio_devices.h"
 #include "juce_audio_basics/juce_audio_basics.h"
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/name_generator.hpp>
+
+#ifndef EAR_DEVICE_HPP
+#define EAR_DEVICE_HPP
+
 namespace ear {
 
 /*
@@ -78,7 +84,6 @@ class AudioIoDevice : public juce::AudioIODeviceCallback {
 	juce::AudioBuffer<float> _outputCache;
 
 	juce::AudioSampleBuffer _buffer;
-	juce::AudioProcessorGraph* _graph{nullptr};
 
 public:
     static juce::Array<std::shared_ptr<juce::AudioIODeviceType>> getAllDeviceTypes() {
@@ -114,6 +119,16 @@ public:
         return devices;
     }
 
+	static std::shared_ptr<AudioIoDevice> getDevice(const boost::uuids::uuid& uuid) {
+		for (auto& device : getAllDevices()) {
+			if (device->getUuid() == uuid) {
+				return device;
+			}
+		}
+
+		return nullptr;
+	}
+
     AudioIoDevice(std::shared_ptr<juce::AudioIODeviceType>& type, juce::String name)
     : _device(type->createDevice(name, name))
     , _type(type)
@@ -130,6 +145,13 @@ public:
     juce::String getName() const { return _device->getName(); }
 
     juce::String getTypeName() const { return _device->getTypeName(); }
+
+	boost::uuids::uuid getUuid() const {
+		boost::uuids::uuid nil = {0};
+		assert(nil.is_nil());
+		boost::uuids::name_generator generator(nil);
+		return generator((getTypeName() + ":" + getName()).getCharPointer());
+	}
 
     juce::StringArray getOutputChannelNames() const { return _device->getOutputChannelNames(); }
 
@@ -175,12 +197,6 @@ public:
 		return true;
 	}
 
-	void setGraph(juce::AudioProcessorGraph* graph) {
-		juce::ScopedLock lock(_mutex);
-
-		_graph = graph;
-	}
-
     bool open() {
         juce::BigInteger inputs;
         inputs.setRange(0, getInputChannelCount(), true);
@@ -190,8 +206,8 @@ public:
 
         juce::String err = _device->open(inputs, outputs, 44100, 512);
 
-        if (err.isEmpty()) {
-            juce::Logger::writeToLog("Device open error=" + err);
+        if (!err.isEmpty()) {
+			DBG("Device open error=" << err);
         }
 
         //_input = std::make_shared<AudioDeviceSource>();
@@ -228,15 +244,18 @@ public:
 
 private:
     void audioDeviceIOCallback(const float **inputChannelData, int numInputChannels, float **outputChannelData, int numOutputChannels, int requestedSamples) {
-        DBG("audioDeviceIOCallback=" + juce::String(_count));
+		const juce::ScopedLock lock(_mutex);
 
-        const juce::ScopedLock lock(_mutex);
+        DBG("audioDeviceIOCallback frame=" + juce::String(_count) + ", callbacks=" + juce::String(_callbacks.size()));
 
 		++_count;
 
+		int callback = 0;
 		for (auto& cb : _callbacks) {
+			DBG(juce::String("    * callback ") + juce::String(callback++));
 			cb->audioDeviceIOCallback(inputChannelData, numInputChannels, outputChannelData, numOutputChannels, requestedSamples);
 		}
+		DBG(juce::String("~audioDeviceIOCallback [0][0]=") << outputChannelData[0][0] << ", [1][0]=" << outputChannelData[1][0]);
 /*
 		if (_graph) {
 			_buffer.setSize(numOutputChannels, requestedSamples);
@@ -344,3 +363,5 @@ public:
 };
 
 } // namespace ear
+
+#endif
