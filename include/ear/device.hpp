@@ -252,7 +252,7 @@ private:
 
 		int callback = 0;
 		for (auto& cb : _callbacks) {
-			DBG(juce::String("    * callback ") + juce::String(callback++));
+			//DBG(juce::String("    * callback ") + juce::String(callback++));
 			cb->audioDeviceIOCallback(inputChannelData, numInputChannels, outputChannelData, numOutputChannels, requestedSamples);
 		}
 		DBG(juce::String("~audioDeviceIOCallback [0][0]=") << outputChannelData[0][0] << ", [1][0]=" << outputChannelData[1][0]);

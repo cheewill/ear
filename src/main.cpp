@@ -14,6 +14,15 @@
 #include "ear/sources.hpp"
 #include "ear/players.hpp"
 
+int pipeTest(boost::program_options::variables_map&) {
+	boost::asio::io_context io_context;
+	ear::AirplaySource source("/tmp/airplay", io_context);
+	source.prepareToPlay(512, 44100.0);
+	io_context.run();
+	std::this_thread::sleep_for(std::chrono::seconds(60));
+	source.releaseResources();
+}
+
 int simpleTest(boost::program_options::variables_map&) {
 	auto devices = ear::AudioIoDevice::getAllDevices();
 	auto device = devices[0];
@@ -207,6 +216,7 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
+	//return pipeTest(vm);
 	return run(vm);
 	//return customGraphTest(vm);
 	//return graphTest(vm);
