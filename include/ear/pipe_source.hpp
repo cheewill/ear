@@ -22,7 +22,7 @@ class PipeSource : public AudioSource {
 	std::string _file;
 	std::thread _thread;
 	//boost::process::async_pipe _pipe;
-	boost::asio::posix::stream_descriptor _source;
+	//boost::asio::posix::stream_descriptor _source;
 	static constexpr unsigned BUFFER_SIZE = 4096;
 	uint8_t _buffer[BUFFER_SIZE];
 	boost::asio::streambuf _dynamic;
@@ -39,7 +39,7 @@ class PipeSource : public AudioSource {
 */
 	void _run() {
 		bool reading = _reading;
-		DBG("run -- " + juce::String(reading?"reading":"not reading"));
+		//DBG("run -- " + juce::String(reading?"reading":"not reading"));
 
 		//boost::asio::streambuf dynamic;
 
@@ -53,32 +53,33 @@ class PipeSource : public AudioSource {
 					while (_reading) {
 						int size = stream.read(buffer, 4096);
 						if (size > 0) {
-							DBG(juce::String("read ") << size << " bytes");
+							//DBG(juce::String("read ") << size << " bytes");
 							processRead(buffer, size);
 						} else {
 							std::this_thread::sleep_for(std::chrono::milliseconds(1));
 						}
 					}
 				} else {
-					DBG("Stream not opened");
+					DBG("Stream not opened; sleeping for 5 seconds before trying again");
 					std::this_thread::sleep_for(std::chrono::seconds(5));
 				}
 			} catch (const std::runtime_error&) {
+				DBG("runtime_error, sleeping for 5 seconds before reopneing file");
 				std::this_thread::sleep_for(std::chrono::seconds(5));
 			}
 		}
 
-		DBG("exiting _run");
+		//DBG("exiting _run");
 	}
 
 protected:
 	virtual void processRead(const uint8_t*, std::size_t) = 0;
 
 public:
-	PipeSource(boost::asio::io_context& context, const std::string& file)
+	PipeSource(const std::string& file)
 		: _bind{std::bind(&PipeSource::read_callback, this, std::placeholders::_1, std::placeholders::_2)}
 		, _file(file)
-		, _source(context)
+		//, _source(context)
 		//, _pipe(context, file)
 	{
 /*		int read_fd = open(file.c_str(), O_RDWR);
@@ -92,7 +93,7 @@ public:
 	}
 
 	void start_reading() {
-		DBG("start_reading");
+		//DBG("start_reading");
 		juce::ScopedLock lock(_mutex);
 		bool wasReading = _reading.exchange(true);
 
@@ -148,7 +149,7 @@ void PipeSource::read_callback(const boost::system::error_code &ec, std::size_t 
 class AirplaySource : public PipeSource {
 private:
 	//Buffer _buffer;
-	static constexpr unsigned FRAMES_TO_BUFFER = 30;
+	static constexpr unsigned FRAMES_TO_BUFFER = 10;
 	static constexpr unsigned BUFFER_SIZE = 512 * 2 * FRAMES_TO_BUFFER;
 	float _buffer[BUFFER_SIZE];
 	int _writeIndex = 0;
@@ -181,12 +182,14 @@ private:
 				}
 			}
 			//std::cout << std::endl;
+
+			//DBG(juce::String() << "input  writeIndex=" << _writeIndex << ", readIndex=" << _readIndex << ", writeCount=" << writeCount << ", readCount=" << readCount << ", readFrameCount=" << writeFrames << ", buffering=" << buffering);
 		}
 	}
 
 public:
-	AirplaySource(const std::string& file, boost::asio::io_context& context)
-		: PipeSource(context, file)
+	AirplaySource(const std::string& file)
+		: PipeSource(file)
 	{}
 
 	void prepareToPlay(int samples, double rate) override {
@@ -241,7 +244,7 @@ public:
 				}
 			}
 
-			DBG(juce::String() << "output " << (_readIndex-startIndex) << " frames " << startIndex << " to " << _readIndex << ", writeIndex=" << _writeIndex << ", writeCount=" << writeCount << ", readCount=" << readCount << ", readFrameCount=" << writeFrames << ", buffering=" << buffering);
+			//DBG(juce::String() << "output writeIndex=" << _writeIndex << ", readIndex=" << _readIndex << ", writeCount=" << writeCount << ", readCount=" << readCount << ", readFrameCount=" << writeFrames << ", buffering=" << buffering);
 		}
 	}
 };
@@ -251,9 +254,9 @@ private:
 	AirplaySource _source;
 
 public:
-	AirplayProcessor(const std::string& file, boost::asio::io_context& context)
+	AirplayProcessor(const std::string& file)
 		: GraphSource(&_source, juce::AudioProcessor::BusesProperties().withOutput("main", juce::AudioChannelSet::stereo()))
-		, _source(file, context)
+		, _source(file)
 	{}
 };
 

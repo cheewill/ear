@@ -25,7 +25,7 @@ public:
     }
 
     void getNextAudioBlock(const juce::AudioSourceChannelInfo &info) override {
-        DBG("WhiteNoiseSource audioBlock range=" + juce::String(0) + " numChannels=" + juce::String(info.buffer->getNumChannels()));
+        //DBG("WhiteNoiseSource audioBlock range=" + juce::String(0) + " numChannels=" + juce::String(info.buffer->getNumChannels()));
 
         if (info.buffer->getNumChannels() > 0) {
             auto* p = info.buffer->getWritePointer(0, info.startSample);

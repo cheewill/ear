@@ -2,20 +2,24 @@
 #include "ear/sources.hpp"
 #include "ear/pipe_source.hpp"
 
+#include "nlohmann/json.hpp"
+
 #include <boost/program_options.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/string_generator.hpp>
 
 #include <thread>
 
-int run(const boost::program_options::variables_map& vm) {
+int run(const nlohmann::json& config) {
 	std::cout << "Server run " << std::endl;
 
 	auto devices = ear::AudioIoDevice::getAllDevices();
 	std::shared_ptr<ear::AudioIoDevice> device(nullptr);
 
-	if (vm.count("device")) {
-		std::string string = vm["device"].as<std::string>();
+	DBG("boolean compare");
+	if (config.count("device")) {
+		DBG("has device");
+		std::string string = config["device"].get<std::string>();
 
 		try {
 			boost::uuids::string_generator generator;
@@ -36,13 +40,24 @@ int run(const boost::program_options::variables_map& vm) {
 		device = devices[0];
 	}
 
+	int longestName = 0;
+	for (auto& d : devices) {
+		longestName = std::max(longestName, d->getName().length());
+	}
+
 	int i = 0;
 	for (auto& d : devices) {
-		std::cout << ((d == device) ? "*" : " ")
-			<< std::right << std::setw(3) << (i++) << ") "
-			<< std::left << std::setw(20) << d->getName()
-			<< d->getUuid()
-			<< " (" << d->getTypeName() << ") " << std::endl;
+		//std::cout << "name length=" << d->getName().length() << std::endl;
+		std::cout << ((*d == *device) ? "*" : " ")
+			<< std::right << std::setw(3) << (i++) << ") ";
+		std::cout << std::left << std::setw(longestName+2) << d->getName();
+		std::cout << d->getUuid()
+			<< " (" << d->getTypeName() << " | ";
+		for (auto i : d->getAvailableSampleRates()) {
+			std::cout << i << " ";
+		}
+		std::cout << "| " << d->getDefaultBufferSize() << ") "
+			<< std::endl;
 	}
 
 	if (device == nullptr) {
@@ -54,6 +69,35 @@ int run(const boost::program_options::variables_map& vm) {
 	auto outputNode = graph.setDevice(device);
 
 	std::cout << "Registered output device with graph" << std::endl;
+
+	if (!config.count("nodes")) {
+		std::cerr << "No nodes found in config" << std::endl;
+		return 1;
+	}
+
+	for (auto& nodeConfig : config["nodes"]) {
+		std::unique_ptr<ear::GraphSource> node;
+
+		std::string type = nodeConfig["type"];
+		if (type == "white") {
+			DBG("Creating white noise node");
+			node = std::make_unique<ear::WhiteNoiseProcessor>();
+		} else if (type == "airplay") {
+			DBG(juce::String("Creating AirPlay node from pipe ") + juce::String(nodeConfig["pipe"].get<std::string>()));
+			node = std::make_unique<ear::AirplayProcessor>(nodeConfig["pipe"].get<std::string>());
+		}
+
+		auto handle = graph.addNode(std::move(node));
+
+		for (auto& it : nodeConfig["connect"].items()) {
+			nlohmann::json connection = it.value();
+			int nodeOutputChannel = connection[0].get<int>();
+			int outputInputChannel = connection[1].get<int>();
+
+			std::cout << "connecting node output " << nodeOutputChannel << " to device output " << outputInputChannel << std::endl;
+			assert(graph.addConnection({{handle, nodeOutputChannel}, {outputNode, outputInputChannel}}));
+		}
+	}
 /*
 	auto whiteNoiseNode1 = graph.addNode(std::make_unique<ear::WhiteNoiseProcessor>());
 	auto whiteNoiseNode2 = graph.addNode(std::make_unique<ear::WhiteNoiseProcessor>());
@@ -63,7 +107,7 @@ int run(const boost::program_options::variables_map& vm) {
 	assert(graph.addConnection({{whiteNoiseNode2, 0}, {outputNode, 1}}));
 
 	std::cout << "Connected white noise to output" << std::endl;
-*/
+
 
 	boost::asio::io_context io_context;
 	auto airplayProcessor = std::make_unique<ear::AirplayProcessor>("/tmp/airplay", io_context);
@@ -77,7 +121,7 @@ int run(const boost::program_options::variables_map& vm) {
 
 		io_context.run();
 	});
-
+*/
 	bool isOpen = device->open();
 	if (!isOpen) {
 		std::cerr << "Failed to open device:" << device->getName() << std::endl;
@@ -85,6 +129,8 @@ int run(const boost::program_options::variables_map& vm) {
 	}
 
 	device->start();
+
+	std::cout << "Server running" << std::endl;
 
 	while (true) {}
 

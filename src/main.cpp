@@ -14,11 +14,13 @@
 #include "ear/sources.hpp"
 #include "ear/players.hpp"
 
+#include "nlohmann/json.hpp"
+
 int pipeTest(boost::program_options::variables_map&) {
-	boost::asio::io_context io_context;
-	ear::AirplaySource source("/tmp/airplay", io_context);
+	//boost::asio::io_context io_context;
+	ear::AirplaySource source("/tmp/airplay");
 	source.prepareToPlay(512, 44100.0);
-	io_context.run();
+	//io_context.run();
 	std::this_thread::sleep_for(std::chrono::seconds(60));
 	source.releaseResources();
 }
@@ -187,14 +189,15 @@ int customGraphTest(boost::program_options::variables_map& vm) {
 int main(int argc, char** argv) {
 	boost::program_options::options_description desc("Allowed options");
 	desc.add_options()
-		("device,d", boost::program_options::value<std::string>()->default_value(""), "Device")
+		("device,d", boost::program_options::value<std::string>(), "Device")
     	("help,h", "produce help message")
 		("quit", "Quit on error")
 		("connect", "Connect nodes")
 		("channel", boost::program_options::value<int>()->default_value(0), "Channel")
 		("gain", boost::program_options::value<float>()->default_value(-6.0), "Gain")
 		("ramp", boost::program_options::value<double>()->default_value(1.0), "Ramp in seconds")
-    	;//("compression", boost::program_options::value<int>(), "set compression level");
+		("config", boost::program_options::value<std::string>()->default_value("ear.json"), "Config file path")
+    	;
 
 	boost::program_options::variables_map vm;
 
@@ -216,8 +219,34 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
+	DBG("config file: " + juce::String(vm["config"].as<std::string>()));
+
+	nlohmann::json configJson;
+
+	auto configFile = juce::File::getCurrentWorkingDirectory().getChildFile(vm["config"].as<std::string>());
+	//juce::File configFile(vm["config"].as<std::string>());
+	if (configFile.exists()) {
+		DBG("file exists");
+		std::string configFileContents(configFile.loadFileAsString().getCharPointer());
+
+		configJson = nlohmann::json::parse(configFileContents, nullptr, false);
+		if (configJson == nlohmann::json::value_t::discarded) {
+			configJson = {};
+		}
+	}
+
+	DBG("config file contents: " + juce::String(configJson.dump()));
+
+	DBG("device count" + juce::String(vm.count("device")));
+	if (vm.count("device")) {
+		configJson["device"] = vm["device"].as<std::string>();
+	}
+
+	DBG("config file contents after cli: " + juce::String(configJson.dump()));
+
+
 	//return pipeTest(vm);
-	return run(vm);
+	return run(configJson);
 	//return customGraphTest(vm);
 	//return graphTest(vm);
 	//return simpleTest(vm);

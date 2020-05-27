@@ -159,6 +159,16 @@ public:
 
     unsigned getInputChannelCount() const { return _device->getInputChannelNames().size(); }
 
+	juce::Array<double> getAvailableSampleRates() const {
+		return _device->getAvailableSampleRates();
+	}
+
+	juce::Array<int> getAvailableBufferSizes() const {
+		_device->getAvailableBufferSizes();
+	}
+
+	int getDefaultBufferSize() const { return _device->getDefaultBufferSize(); }
+
 	bool addCallback(juce::AudioIODeviceCallback* callback) {
 		juce::ScopedLock lock(_mutex);
 
@@ -204,7 +214,13 @@ public:
         juce::BigInteger outputs;
         outputs.setRange(0, getOutputChannelCount(), true);
 
-        juce::String err = _device->open(inputs, outputs, 44100, 512);
+		double rate = 44100;
+		const auto rates = getAvailableSampleRates();
+		if (!rates.contains(rate)) {
+			rate = rates[0];
+		}
+
+        juce::String err = _device->open(inputs, outputs, rate, 512);
 
         if (!err.isEmpty()) {
 			DBG("Device open error=" << err);
@@ -242,11 +258,15 @@ public:
 		_outputCache.makeCopyOf(buffer);
 	}
 
+	bool operator==(const AudioIoDevice& rhs) const {
+		return getUuid() == rhs.getUuid();
+	}
+
 private:
     void audioDeviceIOCallback(const float **inputChannelData, int numInputChannels, float **outputChannelData, int numOutputChannels, int requestedSamples) {
 		const juce::ScopedLock lock(_mutex);
 
-        DBG("audioDeviceIOCallback frame=" + juce::String(_count) + ", callbacks=" + juce::String(_callbacks.size()));
+        //DBG("audioDeviceIOCallback frame=" + juce::String(_count) + ", callbacks=" + juce::String(_callbacks.size()));
 
 		++_count;
 
@@ -255,7 +275,7 @@ private:
 			//DBG(juce::String("    * callback ") + juce::String(callback++));
 			cb->audioDeviceIOCallback(inputChannelData, numInputChannels, outputChannelData, numOutputChannels, requestedSamples);
 		}
-		DBG(juce::String("~audioDeviceIOCallback [0][0]=") << outputChannelData[0][0] << ", [1][0]=" << outputChannelData[1][0]);
+		//DBG(juce::String("~audioDeviceIOCallback [0][0]=") << outputChannelData[0][0] << ", [1][0]=" << outputChannelData[1][0]);
 /*
 		if (_graph) {
 			_buffer.setSize(numOutputChannels, requestedSamples);

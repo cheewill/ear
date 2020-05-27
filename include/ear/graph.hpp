@@ -212,7 +212,7 @@ private:
 	std::shared_ptr<AudioIoDevice> _device{nullptr};
 	AudioGraphNode _deviceNode{nullptr};
 	//unsigned _channelCountCache{0};
-	juce::AudioSampleBuffer _buffer;
+	juce::AudioSampleBuffer _buffer{0, 512};
 	juce::MidiBuffer _midi;
 
 public:
@@ -220,7 +220,7 @@ public:
 	AudioGraphNode _outputNode;
 
 	AudioGraphStandalone() {
-				setPlayConfigDetails(0, 1, 44100, 512);
+				setPlayConfigDetails(0, 0, 44100, 512);
 
 		std::unique_ptr<juce::AudioProcessor> graphInput = std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(juce::AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode);
 		_inputNode = addNode(std::move(graphInput));
@@ -250,11 +250,11 @@ public:
 			// connect output processor node to fake output so the graph will process it
 			std::cout << "device outputchannels=" << _deviceNode.getOutputChannelCount()
 				<< " inputchannels=" << _outputNode.getInputChannelCount() << std::endl;
-			assert(addConnection({{_deviceNode, 0}, {_outputNode, 0}}));
+			//assert(addConnection({{_deviceNode, 0}, {_outputNode, 0}}));
 
 			// create device mapping (which automatically registers the callback)
 			_device = device;
-			_buffer.setSize(device->getOutputChannelCount(), 512);
+			//_buffer.setSize(0/*device->getOutputChannelCount()*/, 512);
 
 			_device->addCallback(this);
 		} else {
@@ -269,11 +269,11 @@ private:
 	void audioDeviceIOCallback(const float**, int, float**, int channels, int samples) override {
 		juce::ScopedLock lock(_mutex);
 
-		DBG("");
-		DBG("callback channels=" + juce::String(channels) + " samples=" + juce::String(samples));
+		//DBG("");
+		//DBG("callback channels=" + juce::String(channels) + " samples=" + juce::String(samples));
 
-		assert(channels <= _buffer.getNumChannels());
-		assert(samples <= _buffer.getNumSamples());
+		//assert(channels <= _buffer.getNumChannels());
+		//assert(samples <= _buffer.getNumSamples());
 
 		//juce::AudioSampleBuffer buffer(outputs, outputChannels, samples);
 		//juce::AudioSourceChannelInfo info(buffer);

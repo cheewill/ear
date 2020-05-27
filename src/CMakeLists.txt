@@ -23,6 +23,7 @@ target_compile_definitions(ear PRIVATE
 juce_generate_juce_header(ear)
 target_link_libraries(ear PRIVATE
 	${Boost_LIBRARIES}
+	nlohmann_json::nlohmann_json
     # ConsoleAppData            # If you'd created a binary data target, you'd link to it here
     juce::juce_core
 	juce::juce_audio_devices
