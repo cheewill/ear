@@ -1,6 +1,7 @@
 #include "ear/graph.hpp"
 #include "ear/sources.hpp"
 #include "ear/pipe_source.hpp"
+#include "ear/server.hpp"
 
 #include "nlohmann/json.hpp"
 
@@ -132,7 +133,8 @@ int run(const nlohmann::json& config) {
 
 	std::cout << "Server running" << std::endl;
 
-	while (true) {}
+	ear::WebsocketServer server;
+	server.run();
 
 	device->close();
 
