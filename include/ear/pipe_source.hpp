@@ -149,9 +149,13 @@ void PipeSource::read_callback(const boost::system::error_code &ec, std::size_t 
 class AirplaySource : public PipeSource {
 private:
 	//Buffer _buffer;
-	static constexpr unsigned FRAMES_TO_BUFFER = 10;
-	static constexpr unsigned BUFFER_SIZE = 512 * 2 * FRAMES_TO_BUFFER;
-	float _buffer[BUFFER_SIZE];
+	//static constexpr unsigned FRAMES_TO_BUFFER = 10;
+	//static constexpr unsigned BUFFER_SIZE = 512 * 2 * FRAMES_TO_BUFFER;
+	unsigned _framesToBuffer;
+	unsigned _bufferSize;
+	//float _buffer[BUFFER_SIZE];
+	std::unique_ptr<float[]> _buffer{nullptr};
+
 	int _writeIndex = 0;
 	int _readIndex = 0;
 	int buffering{0};// = //FRAMES_TO_BUFFER / 2;
@@ -177,20 +181,26 @@ private:
 				_buffer[_writeIndex++] = sample;
 				writeCount++;
 
-				if (_writeIndex >= BUFFER_SIZE) {
+				if (_writeIndex >= _bufferSize) {
 					_writeIndex = 0;
 				}
 			}
 			//std::cout << std::endl;
 
-			//DBG(juce::String() << "input  writeIndex=" << _writeIndex << ", readIndex=" << _readIndex << ", writeCount=" << writeCount << ", readCount=" << readCount << ", readFrameCount=" << writeFrames << ", buffering=" << buffering);
+			DBG(juce::String() << "input  writeIndex=" << _writeIndex << ", readIndex=" << _readIndex << ", writeCount=" << writeCount << ", readCount=" << readCount << ", readFrameCount=" << writeFrames << ", buffering=" << buffering);
 		}
 	}
 
 public:
-	AirplaySource(const std::string& file)
+	AirplaySource(const std::string& file, unsigned framesToBuffer)
 		: PipeSource(file)
-	{}
+		, _framesToBuffer(framesToBuffer)
+		, _bufferSize(512 * 2 * framesToBuffer)
+	{
+		_buffer = std::make_unique<float[]>(_bufferSize);
+
+		DBG(juce::String("Created AirplaySource from file=") + juce::String(file) + juce::String(" with framesToBuffer=") + juce::String(framesToBuffer));
+	}
 
 	void prepareToPlay(int samples, double rate) override {
 		PipeSource::prepareToPlay(samples, rate);
@@ -232,10 +242,10 @@ public:
 				for (int channel = 0; channel < 2; ++channel) {
 					if (_readIndex == _writeIndex) {
 						// caught up to writes, so start buffering again
-						buffering = FRAMES_TO_BUFFER / 2;
+						buffering = _framesToBuffer / 2;
 					} else {
 						buffer.buffer->setSample(channel, sample, _buffer[_readIndex++]);
-						if (_readIndex >= BUFFER_SIZE) {
+						if (_readIndex >= _bufferSize) {
 							_readIndex = 0;
 						}
 
@@ -244,7 +254,7 @@ public:
 				}
 			}
 
-			//DBG(juce::String() << "output writeIndex=" << _writeIndex << ", readIndex=" << _readIndex << ", writeCount=" << writeCount << ", readCount=" << readCount << ", readFrameCount=" << writeFrames << ", buffering=" << buffering);
+			DBG(juce::String() << "output writeIndex=" << _writeIndex << ", readIndex=" << _readIndex << ", writeCount=" << writeCount << ", readCount=" << readCount << ", readFrameCount=" << writeFrames << ", buffering=" << buffering);
 		}
 	}
 };
@@ -254,9 +264,9 @@ private:
 	AirplaySource _source;
 
 public:
-	AirplayProcessor(const std::string& file)
+	AirplayProcessor(const std::string& file, unsigned bufferSize)
 		: GraphSource(&_source, juce::AudioProcessor::BusesProperties().withOutput("main", juce::AudioChannelSet::stereo()))
-		, _source(file)
+		, _source(file, bufferSize)
 	{}
 };
 

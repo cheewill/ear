@@ -12,13 +12,14 @@ option(BUILD_TESTS "Build project with test suite" OFF)
 #set(msgpack_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/msgpack/src")
 
 add_definitions("-g -W -Wall -O2 -fPIC")
-list(APPEND CMAKE_CXX_FLAGS "-std=c++11")
+list(APPEND CMAKE_CXX_FLAGS "-std=c++1z")
 
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 set(JSON_Install OFF CACHE INTERNAL "")
 
 add_subdirectory(juce)
 add_subdirectory(vendor/json)
+#add_subdirectory(vendor/jsonrpccxx)
 
 find_package(Boost 1.70 REQUIRED
     system
@@ -30,7 +31,11 @@ find_package(Boost 1.70 REQUIRED
 
 message("JUCE=${JUCE_FOUND}")
 
-include_directories(${Boost_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/vendor/json/include")
+include_directories(
+	${Boost_INCLUDE_DIRS}
+	"${CMAKE_CURRENT_SOURCE_DIR}/vendor/json/include"
+	"${CMAKE_CURRENT_SOURCE_DIR}/vendor/jsonrpccxx/include"
+)
 #include_directories(${Boost_INCLUDE_DIRS} ${RTTL_INCLUDE_DIRS})
 
 #add_definitions(-DMLOG_DIRECTORY_PATH="${CMAKE_CURRENT_LIST_DIR}")

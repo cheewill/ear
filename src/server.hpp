@@ -76,6 +76,14 @@ int run(const nlohmann::json& config) {
 		return 1;
 	}
 
+	unsigned airplayBufferSize = 40;
+	if (config.count("airplay")) {
+		const nlohmann::json& airplayConfig = config["airplay"];
+		if (airplayConfig.count("buffer")) {
+			airplayBufferSize = airplayConfig["buffer"].get<unsigned>();
+		}
+	}
+
 	for (auto& nodeConfig : config["nodes"]) {
 		std::unique_ptr<ear::GraphSource> node;
 
@@ -85,7 +93,7 @@ int run(const nlohmann::json& config) {
 			node = std::make_unique<ear::WhiteNoiseProcessor>();
 		} else if (type == "airplay") {
 			DBG(juce::String("Creating AirPlay node from pipe ") + juce::String(nodeConfig["pipe"].get<std::string>()));
-			node = std::make_unique<ear::AirplayProcessor>(nodeConfig["pipe"].get<std::string>());
+			node = std::make_unique<ear::AirplayProcessor>(nodeConfig["pipe"].get<std::string>(), airplayBufferSize);
 		}
 
 		auto handle = graph.addNode(std::move(node));
@@ -133,8 +141,26 @@ int run(const nlohmann::json& config) {
 
 	std::cout << "Server running" << std::endl;
 
-	ear::WebsocketServer server;
+	const int THREADS = 0;
+	boost::beast::net::io_context io(THREADS);
+	ear::RpcServer server(io, boost::asio::ip::tcp::endpoint(boost::beast::net::ip::make_address("0.0.0.0"), 7777));
 	server.run();
+
+	boost::beast::net::signal_set signals(io, SIGINT, SIGTERM);
+	signals.async_wait([&] (boost::beast::error_code const&, int) {
+		std::cout << "Signal interrupt" << std::endl;
+		io.stop();
+	});
+
+	std::vector<std::thread> threads;
+	for (int i = 0; i < THREADS; ++i) {
+		threads.emplace_back([&io] { io.run(); });
+	}
+	io.run();
+
+	for (auto& thread : threads) {
+		thread.join();
+	}
 
 	device->close();
 

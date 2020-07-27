@@ -15,7 +15,7 @@
 #include "ear/players.hpp"
 
 #include "nlohmann/json.hpp"
-
+#if 0
 int pipeTest(boost::program_options::variables_map&) {
 	//boost::asio::io_context io_context;
 	ear::AirplaySource source("/tmp/airplay");
@@ -185,7 +185,7 @@ int customGraphTest(boost::program_options::variables_map& vm) {
 
 	return 0;
 }
-
+#endif
 int main(int argc, char** argv) {
 	boost::program_options::options_description desc("Allowed options");
 	desc.add_options()
